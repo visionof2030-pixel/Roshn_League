@@ -346,10 +346,20 @@ tr.rel td.pos{border-right:3px solid var(--lose);color:var(--lose)}
       <button class="btn" onclick="adminTab('arch')">📦 الأرشيف</button>
       <button class="btn" onclick="adminTab('edit')">👑 إدارة توقعات اللاعبين</button>
       <button class="btn" onclick="adminTab('res')">🧮 إدخال النتائج يدوياً</button>
+      <button class="btn" onclick="adminTab('stale')">🧹 توقعات مستبدَلة</button>
     </div>
     <div class="admin-box" id="ab-all"><h4>🗳️ جميع التوقعات <span class="pill" id="allCnt">0</span></h4><div class="plist" id="allList"></div></div>
     <div class="admin-box" id="ab-dup"><h4>🔍 التوقعات المكررة <span class="pill" id="dupCnt">0</span></h4><div class="plist" id="dupList"></div></div>
     <div class="admin-box" id="ab-arch"><h4>📦 أرشيف المباريات المنتهية <span class="pill" id="archCnt">0</span></h4><div class="plist" id="archList"></div></div>
+    <div class="admin-box" id="ab-stale"><h4>🧹 توقعات مستبدَلة <span class="pill" id="staleCnt">0</span></h4>
+      <p style="font-size:.62rem;color:var(--ink-3);margin-bottom:9px;line-height:1.8">
+        صفوف قديمة بقيت في الجدول بعد أن عدّل صاحبها توقعه. <b>لا تُحتسب في النقاط</b> —
+        المعتمد دائماً هو الأحدث. معروضة هنا لتحذفها متى شئت.</p>
+      <div class="admin-btns"><button class="btn danger" onclick="staleDeleteAll()">🗑 حذف الكل</button>
+        <button class="btn" onclick="staleCopy()">📋 نسخ المعرّفات</button></div>
+      <div class="note" id="staleNote"></div>
+      <div class="plist" style="margin-top:10px" id="staleList"></div></div>
+
     <div class="admin-box" id="ab-res"><h4>🧮 إدخال نتيجة مباراة يدوياً <span class="pill" id="resCnt">0</span></h4>
       <p style="font-size:.62rem;color:var(--ink-3);margin-bottom:9px;line-height:1.8">
         تُستخدم إذا لم يحدّث خادم الرابطة النتيجة. النتيجة اليدوية تتقدّم على الـ API،
@@ -1111,14 +1121,17 @@ function adminTab(k){const box=$('#ab-'+k),open=box.classList.contains('on');
   $$('.admin-box').forEach(b=>b.classList.remove('on'));
   if(!open){box.classList.add('on');refreshAdmin();}}
 function refreshAdmin(){
+  const keep=new Set(latest(S.preds).map(x=>x.id));
   const rows=[...S.preds].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,200);
   $('#allCnt').textContent=S.preds.length;
   $('#allList').innerHTML=rows.length?rows.map(p=>{
     const f=fixtureById(fidOf(p.match_id)); if(!f)return '';
     const res=outcome(f);
-    const tag=!res?'<span class="tag wait">لم تُلعب</span>'
-      :(sideOf(f,p.prediction)===res?'<span class="tag ok">توقع صحيح</span>':'<span class="tag no">توقع خاطئ</span>');
-    return `<div class="pitem"><span class="who">${p.user_name}</span>
+    const old=!keep.has(p.id);
+    const tag= old ? '<span class="tag no">مستبدَل · لا يُحتسب</span>'
+      : (!res?'<span class="tag wait">لم تُلعب</span>'
+      :(sideOf(f,p.prediction)===res?'<span class="tag ok">توقع صحيح</span>':'<span class="tag no">توقع خاطئ</span>'));
+    return `<div class="pitem" style="${old?'opacity:.6':''}"><span class="who">${p.user_name}</span>
       <span style="color:var(--ink-3);font-size:.6rem">ج${f.round} ${tName(f.home)} × ${tName(f.away)}</span>
       <span style="color:var(--ink-2)">${predShow(f,p.prediction)}</span>${tag}</div>`;}).join('')
     :`<div class="empty"><span>📭</span> لا توقعات</div>`;
@@ -1144,6 +1157,20 @@ function refreshAdmin(){
       <span class="pts">${scoreLine(f)}</span><span class="tag ok">✅ ${ok}</span>
       <span class="tag no">❌ ${all.length-ok}</span><span class="tag hid">${pc}%</span></div>`;}).join('')
     :`<div class="empty"><span>📭</span> لا مباريات منتهية</div>`;
+  const stale=staleRows();
+  $('#staleCnt').textContent=stale.length;
+  $('#staleList').innerHTML=stale.length?stale.map(r=>{
+    const f=fixtureById(fidOf(r.match_id));
+    const when=r.created_at?new Date(r.created_at).toLocaleString('ar-SA',{timeZone:CFG.TZ,
+      day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
+    return `<div class="pitem" style="opacity:.75">
+      <span class="who">${r.user_name}</span>
+      <span style="color:var(--ink-3);font-size:.6rem">${f?('ج'+f.round+' '+tName(f.home)+' × '+tName(f.away)):'—'}</span>
+      <span style="color:var(--ink-2)">${f?predShow(f,r.prediction):r.prediction}</span>
+      <span style="color:var(--ink-3);font-size:.55rem">${when}</span>
+      <span class="tag no">مستبدَل</span></div>`;}).join('')
+    :`<div class="empty" style="padding:18px"><span>✨</span> لا توجد توقعات مستبدَلة</div>`;
+
   fillPlayers(); fillMatches(); fillResMatches();
 }
 function fillPlayers(){
@@ -1193,6 +1220,31 @@ async function adminDelete(){
   }catch(e){n.className='note err';n.textContent='فشل الحذف: '+(e.message||'خطأ');}
 }
 
+async function staleDeleteAll(){
+  const rows=staleRows(), n=$('#staleNote');
+  if(!rows.length){ n.className='note'; n.textContent='لا يوجد ما يُحذف'; return; }
+  if(!confirm(`حذف ${rows.length} توقعاً مستبدَلاً؟ لن يتأثر أي حساب نقاط.`)) return;
+  n.className='note info'; n.textContent='جارٍ الحذف…';
+  let done=0, failed=0;
+  for(const r of rows){
+    const {error}=await sb.from('predictions').delete().eq('id',r.id);
+    if(error) failed++; else done++;
+  }
+  await fetchPreds(); applyManual(); renderMatches(); renderBoard(); refreshAdmin();
+  if(failed){ n.className='note err';
+    n.textContent=`حُذف ${done} وتعذّر حذف ${failed} — قاعدة البيانات تمنع الحذف (أضف سياسة DELETE)`; }
+  else { n.className='note ok'; n.textContent=`تم حذف ${done} توقعاً مستبدَلاً`; }
+}
+function staleCopy(){
+  const ids=staleRows().map(r=>r.id);
+  const n=$('#staleNote');
+  if(!ids.length){ n.className='note'; n.textContent='لا معرّفات للنسخ'; return; }
+  const sql=`DELETE FROM predictions WHERE id IN (\n  '`+ids.join("',\n  '")+`'\n);`;
+  navigator.clipboard?.writeText(sql).then(()=>{
+    n.className='note ok'; n.textContent='نُسخت جملة SQL جاهزة للصق في Supabase';
+  }).catch(()=>{ n.className='note info'; n.textContent=sql.slice(0,120)+'…'; });
+}
+
 /* حفظ توقع: يحاول التعديل، وإن منعته سياسات قاعدة البيانات يضيف صفاً جديداً
    (يُعتمد الأحدث دائماً، فلا يتكرر احتساب النقاط) */
 async function upsertPred(existing, row){
@@ -1205,7 +1257,19 @@ async function upsertPred(existing, row){
   }
   const {error:e2}=await sb.from('predictions').insert([row]);
   if(e2) throw e2;
+  if(existing){
+    // ننظّف الصف القديم إن سمحت سياسات قاعدة البيانات، وإلا يُوسم "مستبدَل" في لوحة الإدارة
+    const {error:e3}=await sb.from('predictions').delete().eq('id',existing.id);
+    if(e3) console.warn('تعذّر حذف التوقع القديم، سيظهر موسوماً في لوحة الإدارة:', e3.message);
+  }
   return existing?'replaced':'inserted';
+}
+
+/* الصفوف المستبدَلة: كل توقع ليس الأحدث لصاحبه في تلك المباراة */
+function staleRows(){
+  const keep=new Set(latest(S.preds).map(p=>p.id));
+  return S.preds.filter(p=>!keep.has(p.id))
+    .sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
 }
 
 /* --- النتائج اليدوية --- */
@@ -1300,7 +1364,7 @@ setInterval(()=>{if(S.ready)loadAll();},300000);
 
 Object.assign(window,{openPick,openMatch,openPlayer,loadAll,hide,starsMode,boardTab,
   renderCompare,adminTab,adminSave,adminDelete,adminLoadPred,fillPlayers,lockAdmin,toggleTheme,
-  resLoad,resSave,resDelete});
+  resLoad,resSave,resDelete,staleDeleteAll,staleCopy});
 </script>
 </body>
 </html>
