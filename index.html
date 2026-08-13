@@ -7,8 +7,31 @@
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+<!--
+=====================================================================
+  إعداد قاعدة البيانات — نفّذ هذا مرة واحدة في Supabase SQL Editor
+=====================================================================
+
+  ALTER TABLE predictions
+    ADD COLUMN IF NOT EXISTS competition text NOT NULL DEFAULT 'wc';
+
+  CREATE INDEX IF NOT EXISTS idx_predictions_competition
+    ON predictions (competition);
+
+  -- كل التوقعات القديمة تصير 'wc' (أرشيف كأس العالم)
+  -- وهذا الملف يكتب ويقرأ 'spl' فقط.
+
+  ملاحظة: هذا الملف لا يحتاج عمود competition — فهو يقرأ ويكتب
+  الصفوف التي يبدأ match_id فيها بـ spl_ فقط، فيبقى أرشيف
+  كأس العالم سليماً دون أي تعديل على ملفه القديم.
+
+  ⚠️ تأكد أن Row Level Security مفعّل على الجدول.
+=====================================================================
+-->
+
 <style>
 :root{
+  /* ===== هوية دوري روشن — أخضر ===== */
   --bg:#04150d;
   --bg-2:#07200f;
   --surface:rgba(11,42,25,.72);
@@ -46,6 +69,7 @@ body{
 
 .wrap{max-width:1180px;margin:0 auto;padding:0 14px 60px}
 
+/* ===== الترويسة ===== */
 .masthead{
   position:relative;overflow:hidden;
   background:linear-gradient(160deg,#06301a,#04150d 70%);
@@ -67,6 +91,7 @@ body{
   padding:5px 16px;border-radius:40px;font-size:.7rem;font-weight:800;white-space:nowrap
 }
 
+/* ===== شريط علوي ===== */
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
 .btn{
   background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--ink-2);
@@ -78,6 +103,7 @@ body{
 .btn.solid:hover{color:#04150d;box-shadow:0 6px 24px rgba(0,209,102,.25)}
 .btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
 
+/* ===== التبويبات ===== */
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;
   background:var(--surface);padding:5px;border-radius:40px;border:1px solid var(--line)}
 .tab{
@@ -94,6 +120,7 @@ body{
 .pill{background:var(--green-soft);border:1px solid var(--line-green);color:var(--green);
   font-size:.62rem;font-weight:800;padding:2px 12px;border-radius:40px}
 
+/* ===== منتقي الجولة ===== */
 .rounds{display:flex;gap:6px;overflow-x:auto;padding:4px 0 10px;margin-bottom:6px;scrollbar-width:thin}
 .round-b{
   flex:0 0 auto;padding:7px 15px;border-radius:40px;border:1px solid var(--line);
@@ -104,6 +131,7 @@ body{
 .round-b.on{background:var(--green-grad);color:#04150d;border-color:transparent}
 .round-b.done{opacity:.55}
 
+/* ===== بطاقة مباراة ===== */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
 .match{
   background:var(--surface);backdrop-filter:blur(14px);
@@ -143,10 +171,12 @@ body{
 .p-mine.ok{background:rgba(0,209,102,.14);color:var(--win)}
 .p-mine.no{background:rgba(255,92,108,.12);color:var(--lose);border-color:rgba(255,92,108,.25)}
 
+/* شريط توزيع التوقعات */
 .bars{display:flex;height:6px;border-radius:20px;overflow:hidden;background:rgba(255,255,255,.05);margin-top:10px}
 .bars i{display:block;height:100%}
 .bars-l{display:flex;justify-content:space-between;font-size:.55rem;color:var(--ink-3);margin-top:4px;font-weight:700}
 
+/* ===== الترتيب ===== */
 .tbl-wrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
 table{width:100%;border-collapse:collapse;font-size:.72rem}
 th{background:rgba(0,209,102,.09);color:var(--green);padding:11px 6px;font-weight:800;font-size:.64rem;
@@ -162,6 +192,7 @@ tr.rel td.pos{border-right:3px solid var(--lose);color:var(--lose)}
 .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.6rem;color:var(--ink-3);margin-top:10px;padding:0 4px}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-left:5px;vertical-align:middle}
 
+/* ===== المتصدرون ===== */
 .champ{
   background:linear-gradient(140deg,rgba(0,209,102,.16),rgba(0,209,102,.02));
   border:2px solid var(--green);border-radius:var(--r-lg);padding:18px;margin-bottom:14px;
@@ -190,6 +221,7 @@ tr.rel td.pos{border-right:3px solid var(--lose);color:var(--lose)}
   padding:2px 13px;border-radius:40px}
 .person.me{border-color:var(--green)}
 
+/* ===== النوافذ ===== */
 .veil{position:fixed;inset:0;background:rgba(0,8,4,.82);backdrop-filter:blur(16px);z-index:999;
   display:none;align-items:center;justify-content:center;padding:16px}
 .veil.on{display:flex}
@@ -372,10 +404,11 @@ const CFG = {
   SB_URL: 'https://szjxwhsmefqpfcebtvei.supabase.co',
   SB_KEY: 'sb_publishable_0um28lgPMHcjDOThT0UgDA_K-Y7Wmx3',
   ADMIN_CODE: '1406',
-  LOCK_MIN: 5,
+  LOCK_MIN: 5,                  // إقفال التوقع قبل الصافرة بـ 5 دقائق
   TZ: 'Asia/Riyadh'
 };
 
+/* الأندية — أرقامها ثابتة طوال الموسم كما تصدر من الـ API */
 const TEAMS = {
   1:{n:'الأهلي',      s:'أهلي',   c:'#0a8a43'},
   2:{n:'الفتح',       s:'فتح',    c:'#1b62c4'},
@@ -397,8 +430,16 @@ const TEAMS = {
   18:{n:'الدرعية',    s:'درعية',  c:'#00695c'}
 };
 
-const LOGOS = {};
+/* ⬇️ ضع روابط الشعارات هنا. أي نادٍ بلا رابط يُرسم بشعار بديل تلقائياً. */
+const LOGOS = {
+  // 1: 'https://i.ibb.co/xxxx/ahli.png',
+  // 4: 'https://i.ibb.co/xxxx/hilal.png',
+  // 8: 'https://i.ibb.co/xxxx/nassr.png',
+};
 
+/* =====================================================================
+   2) الحالة والاتصال
+   ===================================================================== */
 const S = {
   fixtures: [], byRound: {}, rounds: [],
   currentRound: 1, viewRound: 1,
@@ -419,6 +460,7 @@ function toast(msg){
 function tName(id){ return TEAMS[id] ? TEAMS[id].n : 'فريق ' + id; }
 function tColor(id){ return TEAMS[id] ? TEAMS[id].c : '#2b6'; }
 
+/* شعار: صورة إن وُجدت، وإلا دائرة بلون النادي وأول حرفين من اسمه */
 function crest(id, cls){
   const url = LOGOS[id];
   if (url) return `<img class="crest ${cls||''}" src="${url}" alt="${tName(id)}" loading="lazy">`;
@@ -426,6 +468,7 @@ function crest(id, cls){
   return `<span class="crest ${cls||''}" style="background:${tColor(id)}">${letters}</span>`;
 }
 
+/* الوقت بتوقيت السعودية */
 function ksaTime(iso){
   return new Date(iso).toLocaleTimeString('ar-SA',
     {hour:'2-digit',minute:'2-digit',hour12:false,timeZone:CFG.TZ});
@@ -449,14 +492,19 @@ function countdown(iso){
 }
 
 /* =====================================================================
-   3) جلب البيانات
+   3) جلب البيانات — مع تجاوز حجب CORS
+   -----------------------------------------------------------------
+   خادم الرابطة قد يمنع الاتصال المباشر من المتصفح، خصوصاً عند فتح
+   الملف من الجهاز (file://). نجرّب الاتصال المباشر أولاً، فإن فشل
+   نمرّ عبر وسيط عام. استضافة الملف على الإنترنت تجعل المسار الأول
+   ينجح غالباً وتغنيك عن الوسطاء.
    ===================================================================== */
 const ROUTES = [
   u => u,
   u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
   u => 'https://corsproxy.io/?url=' + encodeURIComponent(u)
 ];
-let goodRoute = 0;
+let goodRoute = 0;                 // نتذكّر المسار الناجح لتسريع الطلبات التالية
 
 async function getJSON(url){
   const order = [goodRoute, ...ROUTES.keys()].filter((v,i,a)=>a.indexOf(v)===i);
@@ -498,23 +546,10 @@ async function fetchFixtures(){
 
 async function fetchPreds(){
   if (!sb) { S.preds = []; return; }
-  try {
-    const { data, error } = await sb.from('predictions')
-      .select('*')
-      .limit(5000);
-    if (error) {
-      console.warn('⚠️ فشل جلب التوقعات:', error);
-      S.preds = [];
-      return;
-    }
-    S.preds = (data || []).filter(p => 
-      p.match_id && p.match_id.startsWith('spl_')
-    );
-    console.log(`✅ تم جلب ${S.preds.length} توقع للدوري`);
-  } catch(e) {
-    console.warn('تعذّر جلب التوقعات', e);
-    S.preds = [];
-  }
+  const { data, error } = await sb.from('predictions').select('*').limit(5000);
+  if (error){ console.warn('تعذّر جلب التوقعات', error); S.preds = []; return; }
+  // توقعات الدوري فقط — أرشيف كأس العالم يبقى سليماً دون أن يُمس
+  S.preds = (data || []).filter(p => String(p.match_id || '').startsWith('spl_'));
 }
 
 async function loadAll(manual){
@@ -559,27 +594,47 @@ function renderRounds(){
   const on = $('#rounds .round-b.on'); if (on) on.scrollIntoView({block:'nearest',inline:'center'});
 }
 
+/* --- صيغة الحفظ في Supabase ---------------------------------------
+   match_id   : spl_{رقم}_{المستضيف}_{الضيف}   مثال: spl_12_الهلال_النصر
+   prediction : اسم الفريق الفائز المتوقَّع، أو DRAW
+   الرقم بعد spl_ هو مفتاح الربط، والأسماء لقراءة الجدول بالعين.
+------------------------------------------------------------------- */
+function midOf(f){ return `spl_${f.id}_${tName(f.home)}_${tName(f.away)}`; }
+function fidOf(mid){ return parseInt(String(mid).split('_')[1], 10); }
+
+// من الجهة إلى النص المحفوظ
+function predText(f, side){
+  if (side === 'DRAW') return 'DRAW';
+  return side === 'HOME' ? tName(f.home) : tName(f.away);
+}
+// من النص المحفوظ إلى الجهة (يقبل الصيغة القديمة HOME/AWAY أيضاً)
+function sideOf(f, val){
+  if (!val || !f) return null;
+  if (val === 'HOME' || val === 'AWAY' || val === 'DRAW') return val;
+  if (val === tName(f.home)) return 'HOME';
+  if (val === tName(f.away)) return 'AWAY';
+  return null;
+}
+// نص للعرض في الواجهة
+function predShow(f, val){
+  const s = sideOf(f, val);
+  if (s === 'DRAW') return '🤝 تعادل';
+  if (s === 'HOME') return '🏆 ' + tName(f.home);
+  if (s === 'AWAY') return '🏆 ' + tName(f.away);
+  return val;
+}
+
 function myPred(fid){
-  return S.preds.find(p => p.user_name === S.me && p.match_id === 'spl_' + fid) || null;
+  return S.preds.find(p => p.user_name === S.me && fidOf(p.match_id) === fid) || null;
 }
 function predsOf(fid){
-  return S.preds.filter(p => p.match_id === 'spl_' + fid);
+  return S.preds.filter(p => fidOf(p.match_id) === fid);
 }
 function outcome(f){
   if (!f.finished) return null;
   if (f.hs > f.as) return 'HOME';
   if (f.as > f.hs) return 'AWAY';
   return 'DRAW';
-}
-
-// ===== الدالة الرئيسية لتحويل التوقع إلى اسم الفريق =====
-function getPredictionDisplay(homeTeamId, awayTeamId, predictionValue){
-  // إذا كانت القيمة هي HOME أو AWAY أو DRAW
-  if (predictionValue === 'DRAW') return '🤝 تعادل';
-  if (predictionValue === 'HOME') return '🏆 ' + tName(homeTeamId);
-  if (predictionValue === 'AWAY') return '🏆 ' + tName(awayTeamId);
-  // إذا كانت القيمة هي اسم الفريق مباشرة
-  return predictionValue;
 }
 
 function renderMatches(){
@@ -598,11 +653,12 @@ function renderMatches(){
     else                 mid = `<div class="ko">${ksaTime(f.kickoff)}</div>
                                 <div class="ko-d">${countdown(f.kickoff)}</div>`;
 
+    // شريط توزيع التوقعات
     let bars = '';
     if (all.length){
-      const h = all.filter(p=>p.prediction==='HOME').length;
-      const d = all.filter(p=>p.prediction==='DRAW').length;
-      const a = all.filter(p=>p.prediction==='AWAY').length;
+      const h = all.filter(p=>sideOf(f,p.prediction)==='HOME').length;
+      const d = all.filter(p=>sideOf(f,p.prediction)==='DRAW').length;
+      const a = all.filter(p=>sideOf(f,p.prediction)==='AWAY').length;
       const pc = n => (n/all.length*100).toFixed(0);
       bars = `<div class="bars">
           <i style="width:${pc(h)}%;background:${tColor(f.home)}"></i>
@@ -612,14 +668,16 @@ function renderMatches(){
         <div class="bars-l"><span>${pc(h)}%</span><span>تعادل ${pc(d)}%</span><span>${pc(a)}%</span></div>`;
     }
 
+    // حالة توقعي
     let mineHtml = '';
     if (mine){
-      const cls = !res ? '' : (mine.prediction === res ? 'ok' : 'no');
-      const mark = !res ? '' : (mine.prediction === res ? ' ✅' : ' ❌');
-      const predDisplay = getPredictionDisplay(f.home, f.away, mine.prediction);
-      mineHtml = `<div class="p-mine ${cls}">توقعك: ${predDisplay}${mark}</div>`;
+      const ms = sideOf(f, mine.prediction);
+      const cls = !res ? '' : (ms === res ? 'ok' : 'no');
+      const mark = !res ? '' : (ms === res ? ' ✅' : ' ❌');
+      mineHtml = `<div class="p-mine ${cls}">توقعك: ${predShow(f, mine.prediction)}${mark}</div>`;
     }
 
+    // الأزرار — التوقع مسموح في الجولة المفتوحة فقط
     let actions;
     if (f.round > S.currentRound){
       actions = `<button class="btn" disabled>🔒 تُفتح بعد الجولة ${S.currentRound}</button>`;
@@ -697,13 +755,12 @@ function fixtureById(id){ return S.fixtures.find(f=>f.id===id); }
 function scoreboard(){
   const map = {};
   S.preds.forEach(p=>{
-    const fid = +String(p.match_id).replace('spl_','');
-    const f = fixtureById(fid); if (!f) return;
+    const f = fixtureById(fidOf(p.match_id)); if (!f) return;
     const u = (map[p.user_name] ||= {name:p.user_name, pts:0, ok:0, no:0, total:0, wait:0});
     u.total++;
     const res = outcome(f);
     if (!res) { u.wait++; return; }
-    if (p.prediction === res){ u.pts++; u.ok++; } else u.no++;
+    if (sideOf(f, p.prediction) === res){ u.pts++; u.ok++; } else u.no++;
   });
   return Object.values(map).sort((a,b)=>{
     if (b.pts !== a.pts) return b.pts - a.pts;
@@ -788,14 +845,15 @@ function openPick(fid){
   $('#pickWhen').textContent = `${ksaDate(f.kickoff)} · ${ksaTime(f.kickoff)} بتوقيت السعودية`;
 
   const mine = myPred(fid);
+  const cur = mine ? sideOf(f, mine.prediction) : null;
   const opts = [
     ['HOME','🏆 فوز '+tName(f.home)],
     ['DRAW','🤝 تعادل'],
     ['AWAY','🏆 فوز '+tName(f.away)]
   ];
   $('#pickOpts').innerHTML = opts.map(([v,l])=>`
-    <label class="opt ${mine && mine.prediction===v ? 'sel':''}">
-      <input type="radio" name="pk" value="${v}" ${mine&&mine.prediction===v?'checked':''}> <span>${l}</span>
+    <label class="opt ${cur===v ? 'sel':''}">
+      <input type="radio" name="pk" value="${v}" ${cur===v?'checked':''}> <span>${l}</span>
     </label>`).join('');
   $$('#pickOpts .opt').forEach(o=>o.onclick=()=>{
     $$('#pickOpts .opt').forEach(x=>x.classList.remove('sel')); o.classList.add('sel');
@@ -816,22 +874,18 @@ $('#pickSave').onclick = async function(){
   if (!sb){ note.className='note err'; note.textContent='لا يوجد اتصال بقاعدة البيانات'; return; }
 
   this.disabled = true; note.className='note info'; note.textContent='جارٍ الحفظ…';
-  const mid = 'spl_' + pickFid;
-  const mine = myPred(pickFid);
+  const mine  = myPred(pickFid);
+  const value = predText(f, sel.value);      // اسم الفريق أو DRAW
+  const mid   = midOf(f);                    // spl_12_الهلال_النصر
 
   try{
     if (mine){
       const { error } = await sb.from('predictions')
-        .update({ prediction: sel.value })
-        .eq('id', mine.id);
+        .update({ prediction: value, match_id: mid }).eq('id', mine.id);
       if (error) throw error;
     } else {
       const { error } = await sb.from('predictions')
-        .insert([{ 
-          user_name: S.me, 
-          match_id: mid, 
-          prediction: sel.value
-        }]);
+        .insert([{ user_name:S.me, match_id:mid, prediction:value }]);
       if (error) throw error;
     }
     await fetchPreds();
@@ -839,7 +893,6 @@ $('#pickSave').onclick = async function(){
     note.className='note ok'; note.textContent='تم الحفظ';
     setTimeout(()=>hide('#vPick'), 800);
   }catch(e){
-    console.error('خطأ في حفظ التوقع:', e);
     note.className='note err';
     note.textContent = 'لم يُحفظ التوقع: ' + (e.message || 'خطأ غير معروف');
   }finally{ this.disabled = false; }
@@ -857,17 +910,14 @@ function openMatch(fid){
     : `${ksaDate(f.kickoff)} · ${all.length} توقع`;
 
   $('#mpList').innerHTML = all.length ? all.map(p=>{
+    const s = sideOf(f, p.prediction);
     let tag = '<span class="tag wait">بانتظار النتيجة</span>';
-    if (res) tag = p.prediction === res
+    if (res) tag = s === res
       ? '<span class="tag ok">صحيح</span>' : '<span class="tag no">خاطئ</span>';
-    
-    // استخدام الدالة لتحويل HOME/AWAY إلى اسم الفريق
-    const predDisplay = getPredictionDisplay(f.home, f.away, p.prediction);
-    
     return `<div class="pitem">
       <span class="who" onclick="hide('#vMatch');openPlayer('${p.user_name.replace(/'/g,"\\'")}')"
             style="cursor:pointer;color:var(--green)">${p.user_name}</span>
-      <span style="color:var(--ink-2)">${predDisplay}</span>${tag}
+      <span style="color:var(--ink-2)">${predShow(f, p.prediction)}</span>${tag}
     </div>`;
   }).join('') : `<div class="empty"><span>📭</span> لا توقعات لهذه المباراة بعد</div>`;
 
@@ -887,19 +937,16 @@ function openPlayer(name){
     : 'لا توقعات';
 
   $('#plList').innerHTML = mine.length ? mine.map(p=>{
-    const f = fixtureById(+String(p.match_id).replace('spl_',''));
+    const f = fixtureById(fidOf(p.match_id));
     if (!f) return '';
     const res = outcome(f);
+    const s = sideOf(f, p.prediction);
     let tag = '<span class="tag wait">لم تُلعب</span>';
-    if (res) tag = p.prediction === res
+    if (res) tag = s === res
       ? '<span class="tag ok">صحيح</span>' : '<span class="tag no">خاطئ</span>';
-    
-    // استخدام الدالة لتحويل HOME/AWAY إلى اسم الفريق
-    const predDisplay = getPredictionDisplay(f.home, f.away, p.prediction);
-    
     return `<div class="pitem">
       <span class="who">ج${f.round} · ${tName(f.home)} × ${tName(f.away)}</span>
-      <span style="color:var(--ink-2)">${predDisplay}</span>${tag}
+      <span style="color:var(--ink-2)">${predShow(f, p.prediction)}</span>${tag}
     </div>`;
   }).join('') : `<div class="empty"><span>📭</span> لا توقعات</div>`;
 
@@ -935,8 +982,8 @@ S.me = localStorage.getItem('splName') || '';
 if (S.me) $('#meBtn').querySelector('span').textContent = S.me;
 
 loadAll();
-setInterval(()=>{ if (S.ready) renderMatches(); }, 30000);
-setInterval(()=>{ if (S.ready) loadAll(); }, 300000);
+setInterval(()=>{ if (S.ready) renderMatches(); }, 30000);   // تحديث العدّاد
+setInterval(()=>{ if (S.ready) loadAll(); }, 300000);        // إعادة جلب كل 5 دقائق
 
 window.openPick = openPick;
 window.openMatch = openMatch;
