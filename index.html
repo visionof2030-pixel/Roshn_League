@@ -1050,11 +1050,14 @@ function renderStars(){
     const cc=clubCards();
     $('#starsNote').textContent=`${cc.reduce((s,c)=>s+c.y,0)} إنذاراً · ${cc.reduce((s,c)=>s+c.r,0)} طرداً`;
     $('#starsTbl').innerHTML=`<thead><tr><th>#</th><th style="text-align:right">النادي</th>
-      <th>🟨</th><th>🟥</th><th>المجموع</th><th style="text-align:right">الأكثر بطاقات</th></tr></thead>
-      <tbody>${cc.map((c,i)=>`<tr><td>${i+1}</td>
+      <th>🟨</th><th>🟥</th><th>المجموع</th><th>اللاعبون</th><th></th></tr></thead>
+      <tbody>${cc.map((c,i)=>`<tr onclick="openClubCards(${c.id})"
+        style="cursor:pointer" title="اضغط لعرض جميع اللاعبين">
+        <td>${i+1}</td>
         <td class="team"><div class="in">${crest(c.id)}<span>${tName(c.id)}</span></div></td>
-        <td class="pts">${c.y}</td><td style="color:var(--lose)">${c.r}</td><td>${c.y+c.r}</td>
-        <td class="team" style="font-size:.62rem">${c.top?c.top.name+' ('+c.top.yc+'🟨'+(c.top.rc?' '+c.top.rc+'🟥':'')+')':'—'}</td>
+        <td class="pts">${c.y}</td><td style="color:var(--lose)">${c.r||''}</td><td>${c.y+c.r}</td>
+        <td>${c.list.length||'—'}</td>
+        <td style="color:var(--brand);font-size:.6rem">${c.list.length?'عرض ›':''}</td>
       </tr>`).join('')}</tbody>`;
     return;
   }
@@ -1412,13 +1415,37 @@ function cardStatus(p){
 }
 function clubCards(){
   const m={};
-  Object.keys(TEAMS).map(Number).forEach(id=>m[id]={id,y:0,r:0,top:null});
+  Object.keys(TEAMS).map(Number).forEach(id=>m[id]={id,y:0,r:0,list:[]});
   S.players.forEach(p=>{
     const t=m[p.team]; if(!t) return;
-    t.y+=(+p.yc||0); t.r+=(+p.rc||0);
-    if(!t.top || (p.yc+p.rc*3)>(t.top.yc+t.top.rc*3)) t.top=p;
+    const y=+p.yc||0, r=+p.rc||0;
+    t.y+=y; t.r+=r;
+    if(y>0||r>0) t.list.push(p);
   });
+  Object.values(m).forEach(t=>t.list.sort((a,b)=>(b.rc*4+b.yc)-(a.rc*4+a.yc)));
   return Object.values(m).sort((a,b)=>(b.y+b.r*3)-(a.y+a.r*3));
+}
+
+/* كل لاعبي نادٍ ممن نالوا بطاقات */
+function openClubCards(id){
+  const list=S.players.filter(p=>p.team===id&&((+p.yc||0)>0||(+p.rc||0)>0))
+    .sort((a,b)=>(b.rc*4+b.yc)-(a.rc*4+a.yc));
+  const y=list.reduce((s,p)=>s+(+p.yc||0),0), r=list.reduce((s,p)=>s+(+p.rc||0),0);
+  $('#plTitle').textContent='🟨 بطاقات '+tName(id);
+  $('#plLead').textContent = list.length
+    ? `${y} إنذاراً · ${r} طرداً · ${list.length} لاعباً`
+    : 'لم يُنَل أي لاعب بطاقة بعد';
+  $('#plList').innerHTML = list.length ? list.map(p=>{
+    const c=cardStatus(p);
+    const tag = c.suspended ? '<span class="tag no">موقوف</span>'
+      : (c.risk ? '<span class="tag" style="background:var(--draw);color:#04150d">باقٍ إنذار واحد</span>'
+      : `<span class="tag hid">${c.toBan} للإيقاف</span>`);
+    return `<div class="pitem ${c.risk||c.suspended?'wrong':''}">
+      <span class="who">${p.name}</span>
+      <span style="color:var(--ink-2)">🟨 ${p.yc}${p.rc?' · 🟥 '+p.rc:''}</span>
+      <span style="color:var(--ink-3);font-size:.58rem">الدورة ${c.cycle}/4</span>${tag}</div>`;
+  }).join('') : `<div class="empty"><span>✅</span> لا بطاقات على هذا النادي</div>`;
+  show('#vPlayer');
 }
 
 /* ===== ٢ + ٧) أخبار الجولة: الإقفال · الغيابات · نجوم الجولة ===== */
@@ -1981,7 +2008,7 @@ setInterval(()=>{if(S.ready)loadAll();},300000);
 Object.assign(window,{openPick,openMatch,openPlayer,loadAll,hide,starsMode,boardTab,
   renderCompare,adminTab,adminSave,adminDelete,adminLoadPred,fillPlayers,lockAdmin,toggleTheme,
   resLoad,resSave,resDelete,staleDeleteAll,staleCopy,goPick,shareCard,exportCSV,renderMe,paint,toggleOld,
-  renderNews,renderSearch,renderCards});
+  renderNews,renderSearch,renderCards,openClubCards});
 </script>
 </body>
 </html>
