@@ -756,7 +756,8 @@ const isLocked=i=>Date.now()>(new Date(i).getTime()-CFG.LOCK_MIN*60000);
    لذلك نعتمد النتيجة متى وُجدت ومضى على الانطلاق ساعتان ونصف،
    ونعتبر المباراة منتهية زمنياً حتى لو بقيت النتيجة فارغة. */
 const ENDED_MS=150*60000;   // ساعتان ونصف من الصافرة الأولى
-const hasEnded=f=>!!f.finished || Date.now() > new Date(f.kickoff).getTime()+ENDED_MS;
+const hasEnded=f=>!!f.finished || !!f.prov || (f.mins>=90)
+  || Date.now() > new Date(f.kickoff).getTime()+ENDED_MS;
 function countdown(iso){let d=new Date(iso).getTime()-Date.now(); if(d<=0)return 'بدأت';
   const day=Math.floor(d/864e5);d-=day*864e5;const h=Math.floor(d/36e5);d-=h*36e5;const m=Math.floor(d/6e4);
   if(day>0)return `بعد ${day} يوم`; if(h>0)return `بعد ${h}س ${m}د`; return `بعد ${m} دقيقة`;}
@@ -809,7 +810,8 @@ function mapFixtures(raw){
   S.fixtures=raw.map(f=>({id:f.id,round:f.event,kickoff:f.kickoff_time,
     provisional:!!f.provisional_start_time,home:f.team_h,away:f.team_a,
     hs:f.team_h_score,as:f.team_a_score,started:!!f.started,
-    apiFinished:!!f.finished, finished:false, stats:f.stats||[]}))
+    apiFinished:!!f.finished, prov:!!f.finished_provisional, mins:+f.minutes||0,
+    finished:false, stats:f.stats||[]}))
     .sort((a,b)=>new Date(a.kickoff)-new Date(b.kickoff));
   S.byRound={}; S.fixtures.forEach(f=>(S.byRound[f.round] ||= []).push(f));
   S.rounds=Object.keys(S.byRound).map(Number).sort((a,b)=>a-b);
@@ -821,6 +823,10 @@ function refreshFinished(){
   S.fixtures.forEach(f=>{
     if(f.manual){ f.src='يدوية'; return; }     // النتيجة اليدوية لها الأسبقية المطلقة
     const late = now > new Date(f.kickoff).getTime()+ENDED_MS;
+    /* الخادم لا يبث أثناء المباراة، بل ينشر النتيجة دفعة واحدة بعد الصافرة
+       ويرفع معها finished_provisional ويضبط minutes على 90.
+       فمتى ظهر أحدهما اعتمدنا النتيجة فوراً بلا انتظار عدّاد الساعتين ونصف. */
+    const published = f.prov || f.mins>=90;
     let scored = f.hs!==null&&f.hs!==undefined&&f.as!==null&&f.as!==undefined;
     if(scored) f.src='الرابطة';
     else {
@@ -828,7 +834,7 @@ function refreshFinished(){
       if(lv && late){ f.hs=lv.hs; f.as=lv.as; scored=true; f.src='مستنتَجة'; }
       else f.src=null;
     }
-    f.finished = f.apiFinished || (scored && late);
+    f.finished = f.apiFinished || (scored && (published || late));
   });
   if(S.rounds.length)
     S.currentRound=S.rounds.find(r=>S.byRound[r].some(f=>!hasEnded(f)))||S.rounds[S.rounds.length-1];
@@ -2604,7 +2610,15 @@ if(S.me)$('#meBtn').querySelector('span').textContent=S.me;
 starsMode('g');
 loadAll();
 setInterval(()=>{if(S.ready){refreshFinished();renderMatches();renderRemind();renderPrev();}},30000);
-setInterval(()=>{if(S.ready)loadAll();},300000);
+/* أثناء يوم المباريات نتحقق كل دقيقتين، وفي غيره كل خمس دقائق */
+setInterval(()=>{
+  if(!S.ready) return;
+  const soon=S.fixtures.some(f=>{
+    const t=new Date(f.kickoff).getTime();
+    return !f.finished && Date.now()>t && Date.now()<t+4*36e5;   // انطلقت خلال 4 ساعات
+  });
+  if(soon || Date.now()%3e5<12e4) loadAll();
+},120000);
 
 Object.assign(window,{openPick,openMatch,openPlayer,loadAll,hide,starsMode,boardTab,
   renderCompare,adminTab,adminSave,adminDelete,adminLoadPred,fillPlayers,lockAdmin,toggleTheme,
