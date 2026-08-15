@@ -735,7 +735,7 @@ const ICON_BOLT=`<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4.5
 
 const RESULT_USER='#result';   // صف محجوز لتخزين النتائج اليدوية داخل نفس الجدول
 const S={fixtures:[],byRound:{},rounds:[],apiTeams:{},players:[],byPlayer:{},events:[],
-  live:{},liveStats:{},liveScores:{},currentRound:1,viewRound:1,
+  live:{},liveStats:{},liveScores:{},liveEnded:{},currentRound:1,viewRound:1,
   preds:[],results:{},me:'',admin:false,ready:false,starsMode:'g',boardTab:'rank'};
 let charts={};
 let sb=null; try{ sb=supabase.createClient(CFG.SB_URL,CFG.SB_KEY); }catch(e){ console.error(e); }
@@ -755,8 +755,8 @@ const isLocked=i=>Date.now()>(new Date(i).getTime()-CFG.LOCK_MIN*60000);
 /* خادم الرابطة قد لا يرفع علم finished مطلقاً، لكنه قد يكتب النتيجة.
    لذلك نعتمد النتيجة متى وُجدت ومضى على الانطلاق ساعتان ونصف،
    ونعتبر المباراة منتهية زمنياً حتى لو بقيت النتيجة فارغة. */
-const ENDED_MS=150*60000;   // ساعتان ونصف من الصافرة الأولى
-const hasEnded=f=>!!f.finished || !!f.prov || (f.mins>=90)
+const ENDED_MS=135*60000;   // شبكة أمان أخيرة إن لم تصل أي إشارة من المصدر
+const hasEnded=f=>!!f.finished || !!f.prov || (f.mins>=90) || !!S.liveEnded[f.id]
   || Date.now() > new Date(f.kickoff).getTime()+ENDED_MS;
 function countdown(iso){let d=new Date(iso).getTime()-Date.now(); if(d<=0)return 'بدأت';
   const day=Math.floor(d/864e5);d-=day*864e5;const h=Math.floor(d/36e5);d-=h*36e5;const m=Math.floor(d/6e4);
@@ -826,7 +826,7 @@ function refreshFinished(){
     /* الخادم لا يبث أثناء المباراة، بل ينشر النتيجة دفعة واحدة بعد الصافرة
        ويرفع معها finished_provisional ويضبط minutes على 90.
        فمتى ظهر أحدهما اعتمدنا النتيجة فوراً بلا انتظار عدّاد الساعتين ونصف. */
-    const published = f.prov || f.mins>=90;
+    const published = f.prov || f.mins>=90 || !!S.liveEnded[f.id];
     let scored = f.hs!==null&&f.hs!==undefined&&f.as!==null&&f.as!==undefined;
     if(scored) f.src='الرابطة';
     else {
@@ -938,6 +938,11 @@ function buildFromLive(){
     });
   });
   S.liveStats=agg;
+  /* بلوغ أي لاعب 90 دقيقة = المباراة انتهت يقيناً — أدق من أي عدّاد زمني */
+  S.liveEnded={};
+  Object.keys(S.live).map(Number).forEach(r=>{
+    (S.live[r]||[]).forEach(e=>{ if(e.fx && (e.m||0)>=90) S.liveEnded[e.fx]=true; });
+  });
   S.liveScores={};
   Object.keys(scores).map(Number).forEach(fx=>{
     const s=scores[fx];
@@ -2617,8 +2622,8 @@ setInterval(()=>{
     const t=new Date(f.kickoff).getTime();
     return !f.finished && Date.now()>t && Date.now()<t+4*36e5;   // انطلقت خلال 4 ساعات
   });
-  if(soon || Date.now()%3e5<12e4) loadAll();
-},120000);
+  if(soon || Date.now()%3e5<6e4) loadAll();
+},60000);
 
 Object.assign(window,{openPick,openMatch,openPlayer,loadAll,hide,starsMode,boardTab,
   renderCompare,adminTab,adminSave,adminDelete,adminLoadPred,fillPlayers,lockAdmin,toggleTheme,
