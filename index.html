@@ -798,13 +798,14 @@ async function getJSON(url){
 }
 
 /* ذاكرة محلية: تعرض البيانات فوراً ثم تُحدَّث في الخلفية */
+const CACHE_V='v2_';   // تغيير هذه القيمة يُبطل كل ما خُزّن سابقاً
 function cacheGet(k,ttl){
-  try{ const o=JSON.parse(localStorage.getItem('splc_'+k)||'null');
+  try{ const o=JSON.parse(localStorage.getItem('splc_'+CACHE_V+k)||'null');
     if(o && Date.now()-o.t < ttl) return o.v; }catch(e){}
   return null;
 }
 function cacheSet(k,v){
-  try{ localStorage.setItem('splc_'+k,JSON.stringify({t:Date.now(),v})); }catch(e){}
+  try{ localStorage.setItem('splc_'+CACHE_V+k,JSON.stringify({t:Date.now(),v})); }catch(e){}
 }
 function mapFixtures(raw){
   S.fixtures=raw.map(f=>({id:f.id,round:f.event,kickoff:f.kickoff_time,
@@ -818,23 +819,24 @@ function mapFixtures(raw){
   refreshFinished();
 }
 /* يُعاد تقييم حالة كل مباراة مع مرور الوقت ومع كل جلب جديد */
+/* ============================================================
+   قاعدة صارمة: لا تُحتسب أي نتيجة على المتسابقين إلا إن كانت
+   • رسمية من fixtures (النتيجة التي ينشرها الخادم بعد الصافرة)
+   • أو مُدخَلة يدوياً من لوحة الإدارة
+   الاستنتاج من أرقام اللاعبين يُعرض كـ«نتيجة أولية» للاطلاع فقط،
+   لأن الخادم ينشرها ناقصة أثناء المباراة وقد تكون خاطئة.
+   ============================================================ */
 function refreshFinished(){
-  const now=Date.now();
   S.fixtures.forEach(f=>{
-    if(f.manual){ f.src='يدوية'; return; }     // النتيجة اليدوية لها الأسبقية المطلقة
-    const late = now > new Date(f.kickoff).getTime()+ENDED_MS;
-    /* الخادم لا يبث أثناء المباراة، بل ينشر النتيجة دفعة واحدة بعد الصافرة
-       ويرفع معها finished_provisional ويضبط minutes على 90.
-       فمتى ظهر أحدهما اعتمدنا النتيجة فوراً بلا انتظار عدّاد الساعتين ونصف. */
-    const published = f.prov || f.mins>=90 || !!S.liveEnded[f.id];
-    let scored = f.hs!==null&&f.hs!==undefined&&f.as!==null&&f.as!==undefined;
-    if(scored) f.src='الرابطة';
-    else {
-      const lv=S.liveScores[f.id];             // استنتاج من أرقام اللاعبين
-      if(lv && late){ f.hs=lv.hs; f.as=lv.as; scored=true; f.src='مستنتَجة'; }
-      else f.src=null;
+    if(f.manual){ f.src='يدوية'; f.finished=true; f.preview=null; return; }
+    const official = f.hs!==null&&f.hs!==undefined&&f.as!==null&&f.as!==undefined;
+    if(official){
+      f.src='الرابطة'; f.finished=true; f.preview=null;
+    }else{
+      f.src=null; f.finished=false;
+      const lv=S.liveScores[f.id];
+      f.preview = lv ? {hs:lv.hs, as:lv.as} : null;   // للعرض فقط
     }
-    f.finished = f.apiFinished || (scored && (published || late));
   });
   if(S.rounds.length)
     S.currentRound=S.rounds.find(r=>S.byRound[r].some(f=>!hasEnded(f)))||S.rounds[S.rounds.length-1];
@@ -906,8 +908,8 @@ async function fetchLive(r, force){
       pts:e.stats.total_points,
       fx:(e.explain&&e.explain[0]&&e.explain[0].fixture)||null}));
     S.live[r]=slim;
-    const done=(S.byRound[r]||[]).every(f=>hasEnded(f));
-    if(done) cacheSet('lv'+r, slim);          // الجولة المنتهية لا تتغيّر
+    const settled=(S.byRound[r]||[]).every(f=>outcome(f));
+    if(settled) cacheSet('lv'+r, slim);       // لا تُخزَّن إلا بعد اعتماد كل نتائجها
     return slim;
   }catch(e){ console.warn('تعذّر جلب أرقام الجولة '+r, e); return null; }
 }
@@ -1131,7 +1133,9 @@ function renderMatches(){
     const live=f.started&&!f.finished, res=outcome(f), mine=myPred(f.id), all=predsOf(f.id);
     let mid;
     if(f.finished) mid=`<div class="score g" style="${hasScore(f)?'':'font-size:.8rem'}">${scoreLine(f)}</div>`+
-      (f.src?`<div class="ko-d">${f.src==='مستنتَجة'?'نتيجة مستنتَجة من أرقام اللاعبين':(f.src==='يدوية'?'نتيجة مُدخَلة يدوياً':'من موقع الرابطة')}</div>`:'');
+      `<div class="ko-d">${f.src==='يدوية'?'نتيجة مُدخَلة يدوياً':'من موقع الرابطة'}</div>`;
+    else if(hasEnded(f)) mid=`<div class="score" style="opacity:.75">${f.preview?f.preview.hs+' - '+f.preview.as:'—'}</div>
+      <div class="ko-d" style="color:var(--draw)">نتيجة أولية · بانتظار اعتماد الرابطة</div>`;
     else if(live)  mid=`<div class="score">${f.hs??0} - ${f.as??0}</div>`;
     else mid=`<div class="ko">${ksaTime(f.kickoff)}</div><div class="ko-d">${countdown(f.kickoff)}</div>`;
 
@@ -1204,7 +1208,8 @@ function renderPrev(){
     const ok=all.filter(p=>sideOf(f,p.prediction)===res).length;
     const mid = res
       ? `<div class="sc" style="${hasScore(f)?'':'font-size:.66rem'}">${scoreLine(f)}</div>`
-      : `<div class="sc" style="font-size:.58rem;background:rgba(240,180,41,.18);color:var(--draw)">بانتظار النتيجة</div>`;
+      : `<div class="sc" style="font-size:.56rem;background:rgba(240,180,41,.18);color:var(--draw)">
+          ${f.preview?`أولية ${f.preview.hs}-${f.preview.as}`:'بانتظار النتيجة'}</div>`;
     const sum = res
       ? `<span class="g">✅ صحيح ${ok}</span><span class="r">❌ خاطئ ${all.length-ok}</span>
          <span class="n">${all.length} توقع</span>`
@@ -2332,6 +2337,16 @@ function refreshAdmin(){
       <span class="tag no">${v.length} نسخ</span></div>`;}).join('')
     :`<div class="empty"><span>✅</span> لا تكرار</div>`;
 
+  const pend=S.fixtures.filter(f=>hasEnded(f)&&!outcome(f));
+  if(pend.length){
+    $('#archList').innerHTML='';
+    $('#allList').innerHTML=`<div class="pitem wrong" style="flex-direction:column;align-items:stretch;gap:6px">
+      <b style="color:var(--lose)">⚠️ ${pend.length} مباراة انتهت ولم تصل نتيجتها الرسمية</b>
+      ${pend.map(f=>`<span style="font-size:.63rem">ج${f.round} ${tName(f.home)} × ${tName(f.away)}
+        ${f.preview?`<span style="color:var(--draw)">· أولية ${f.preview.hs}-${f.preview.as}</span>`:''}</span>`).join('')}
+      <span style="font-size:.6rem;color:var(--ink-2)">اعتمدها يدوياً من «🧮 إدخال النتائج» إن تأخرت</span>
+    </div>`+$('#allList').innerHTML;
+  }
   const done=S.fixtures.filter(f=>f.finished);
   $('#archCnt').textContent=done.length;
   $('#archList').innerHTML=done.length?done.slice().reverse().map(f=>{
