@@ -328,6 +328,56 @@ tr.rel td.pos{border-right:3px solid var(--lose);color:var(--lose)}
 .chip .t .a{font-size:.7rem;font-weight:800}
 .chip .t .b{font-size:.55rem;color:var(--ink-3);font-weight:700}
 
+/* الإرشاد اللحظي */
+.coach-ring{position:fixed;border-radius:44px;pointer-events:none;z-index:900;
+  box-shadow:0 0 0 3px var(--brand),0 0 0 9999px rgba(4,14,24,.55);
+  animation:coachPulse 1.7s infinite;transition:all .3s cubic-bezier(.4,0,.2,1)}
+@keyframes coachPulse{
+  0%{box-shadow:0 0 0 3px var(--brand),0 0 0 0 rgba(0,180,146,.55),0 0 0 9999px rgba(4,14,24,.55)}
+  70%{box-shadow:0 0 0 3px var(--brand),0 0 0 16px rgba(0,180,146,0),0 0 0 9999px rgba(4,14,24,.55)}
+  100%{box-shadow:0 0 0 3px var(--brand),0 0 0 0 rgba(0,180,146,0),0 0 0 9999px rgba(4,14,24,.55)}}
+.coach-tip{position:fixed;z-index:901;max-width:270px;background:var(--bg-2);
+  border:1px solid var(--brand);border-radius:16px;padding:12px 14px;
+  box-shadow:0 18px 50px rgba(0,0,0,.5);animation:tipIn .35s ease}
+@keyframes tipIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.coach-tip .ct{font-size:.76rem;font-weight:900;color:var(--brand);margin-bottom:2px}
+.coach-tip .cs{font-size:.64rem;color:var(--ink-2);line-height:1.75}
+.coach-tip .cf{display:flex;justify-content:space-between;align-items:center;margin-top:9px}
+.coach-tip .dots{display:flex;gap:4px}
+.coach-tip .dots i{width:6px;height:6px;border-radius:50%;background:var(--line-b);display:block}
+.coach-tip .dots i.on{background:var(--brand)}
+.coach-tip .skip{background:none;border:none;color:var(--ink-3);font-size:.6rem;
+  font-weight:700;cursor:pointer;font-family:inherit;padding:2px 6px}
+.coach-tip .skip:hover{color:var(--lose)}
+.coach-arrow{position:fixed;z-index:901;width:0;height:0;
+  border-left:9px solid transparent;border-right:9px solid transparent;
+  border-bottom:9px solid var(--brand)}
+
+/* نافذة التسجيل */
+.namewarn{display:none;background:rgba(240,180,41,.13);border:1px solid rgba(240,180,41,.42);
+  border-radius:14px;padding:11px 13px;margin-top:11px;font-size:.68rem;line-height:1.9;text-align:right}
+.namewarn.on{display:block}
+.namewarn b{color:var(--draw)}
+.namewarn .two{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.namewarn .two .btn{flex:1;justify-content:center;min-width:120px}
+.whoisin{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.whoisin .t{font-size:.6rem;color:var(--ink-3);font-weight:700;margin-bottom:6px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;max-height:96px;overflow-y:auto}
+.chips span{background:var(--surface);border:1px solid var(--line);border-radius:40px;
+  padding:2px 11px;font-size:.6rem;font-weight:700;color:var(--ink-2);cursor:pointer}
+.chips span:hover{border-color:var(--brand);color:var(--brand)}
+
+/* شاشة الترحيب */
+.welc{text-align:center}
+.welc .logo{font-size:2.4rem;margin-bottom:6px}
+.steps{display:flex;flex-direction:column;gap:9px;margin:16px 0;text-align:right}
+.step{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);
+  border-radius:14px;padding:11px 13px}
+.step .num{width:28px;height:28px;border-radius:50%;background:var(--brand-grad);color:#fff;
+  display:grid;place-items:center;font-weight:900;font-size:.75rem;flex-shrink:0}
+.step .tx{flex:1;font-size:.72rem;font-weight:700;line-height:1.7}
+.step .tx small{display:block;font-weight:600;color:var(--ink-3);font-size:.6rem}
+
 /* تبويبات داخل نافذة المباراة */
 .mtabs{display:flex;gap:5px;background:var(--surface);padding:4px;border-radius:40px;
   border:1px solid var(--line);margin-bottom:12px}
@@ -420,11 +470,27 @@ tr.rel td.pos{border-right:3px solid var(--lose);color:var(--lose)}
       <button class="btn" onclick="adminTab('edit')">👑 إدارة توقعات اللاعبين</button>
       <button class="btn" onclick="adminTab('res')">🧮 إدخال النتائج يدوياً</button>
       <button class="btn" onclick="adminTab('stale')">🧹 توقعات مستبدَلة</button>
+      <button class="btn" onclick="adminTab('names')">🕵️ كاشف تداخل الأسماء</button>
       <button class="btn" onclick="exportCSV()">⬇️ تصدير CSV</button>
     </div>
     <div class="admin-box" id="ab-all"><h4>🗳️ جميع التوقعات <span class="pill" id="allCnt">0</span></h4><div class="plist" id="allList"></div></div>
     <div class="admin-box" id="ab-dup"><h4>🔍 التوقعات المكررة <span class="pill" id="dupCnt">0</span></h4><div class="plist" id="dupList"></div></div>
     <div class="admin-box" id="ab-arch"><h4>📦 أرشيف المباريات المنتهية <span class="pill" id="archCnt">0</span></h4><div class="plist" id="archList"></div></div>
+    <div class="admin-box" id="ab-names"><h4>🕵️ كاشف تداخل الأسماء <span class="pill" id="namesCnt">0</span></h4>
+      <p style="font-size:.62rem;color:var(--ink-3);margin-bottom:9px;line-height:1.8">
+        يرصد الأسماء المتطابقة بعد تجاهل الهمزات والتاء المربوطة والمسافات،
+        والأسماء التي عُدِّل توقعها الواحد أكثر من مرة (مؤشر على أن شخصين يستخدمانه).</p>
+      <div class="plist" id="namesList"></div>
+      <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:11px">
+        <h4>🔗 دمج اسمين في واحد</h4>
+        <div class="row">
+          <div class="field"><label>الاسم المراد دمجه (سيختفي)</label><select id="mgFrom"></select></div>
+          <div class="field"><label>يُدمج في (سيبقى)</label><select id="mgTo"></select></div>
+        </div>
+        <button class="btn solid" onclick="mergeNames()">🔗 تنفيذ الدمج</button>
+        <div class="note" id="mgNote"></div>
+      </div></div>
+
     <div class="admin-box" id="ab-stale"><h4>🧹 توقعات مستبدَلة <span class="pill" id="staleCnt">0</span></h4>
       <p style="font-size:.62rem;color:var(--ink-3);margin-bottom:9px;line-height:1.8">
         صفوف قديمة بقيت في الجدول بعد أن عدّل صاحبها توقعه. <b>لا تُحتسب في النقاط</b> —
@@ -574,9 +640,11 @@ tr.rel td.pos{border-right:3px solid var(--lose);color:var(--lose)}
 
 <div class="veil" id="vName"><div class="box"><button class="x" data-close>✕</button>
   <h2>اكتب اسمك</h2><p class="lead">يُستخدم لتسجيل توقعاتك ومتابعة ترتيبك</p>
-  <input type="text" id="nameIn" maxlength="30" placeholder="الاسم" style="text-align:center" />
+  <input type="text" id="nameIn" maxlength="30" placeholder="الاسم" style="text-align:center" oninput="checkName()" />
+  <div class="namewarn" id="nameWarn"></div>
   <div class="note" id="nameNote"></div>
-  <button class="btn solid" style="width:100%;justify-content:center;margin-top:12px;padding:13px" id="nameGo">متابعة</button></div></div>
+  <button class="btn solid" style="width:100%;justify-content:center;margin-top:12px;padding:13px" id="nameGo">متابعة</button>
+  <div class="whoisin" id="whoIsIn"></div></div></div>
 
 <div class="veil" id="vPick"><div class="box"><button class="x" data-close>✕</button>
   <h2 id="pickTitle">توقّع النتيجة</h2><p class="lead" id="pickWhen"></p>
@@ -605,6 +673,10 @@ tr.rel td.pos{border-right:3px solid var(--lose);color:var(--lose)}
   <input type="password" id="pwIn" maxlength="12" placeholder="••••" style="text-align:center;letter-spacing:6px" />
   <div class="note" id="pwNote"></div>
   <button class="btn solid" style="width:100%;justify-content:center;margin-top:12px;padding:13px" id="pwGo">دخول</button></div></div>
+
+<div class="coach-ring" id="coachRing" style="display:none"></div>
+<div class="coach-arrow" id="coachArrow" style="display:none"></div>
+<div class="coach-tip" id="coachTip" style="display:none"></div>
 
 <div class="toast" id="toast"></div>
 
@@ -808,6 +880,7 @@ async function syncLive(){
   buildFromLive(); applyLiveToPlayers();
   refreshFinished(); applyManual();
   paint(); if(S.admin) refreshAdmin();
+  coachNext();
 }
 
 /* ===== نقطة الجولة الحيّة =====
@@ -1672,7 +1745,7 @@ $('#bulkSave')?.addEventListener('click',async function(){
   note.className = fail?'note err':'note ok';
   note.textContent = fail? `حُفظ ${ok} وتعذّر ${fail}` : `تم حفظ ${ok} ${ok===1?'توقع':'توقعات'}`;
   this.disabled=false;
-  if(!fail) setTimeout(()=>hide('#vBulk'),900);
+  if(!fail) setTimeout(()=>{hide('#vBulk'); coachNext();},900);
 });
 
 /* ===== ٣) التوقع الجريء + ٨) أصعب مباراة ===== */
@@ -1930,18 +2003,168 @@ function exportCSV(){
 }
 
 /* النوافذ */
-const show=id=>{$(id).classList.add('on');document.body.style.overflow='hidden';};
-const hide=id=>{$(id).classList.remove('on');document.body.style.overflow='';};
+const show=id=>{$(id).classList.add('on');document.body.style.overflow='hidden';
+  if(typeof coachSync==='function') coachSync();};
+const hide=id=>{$(id).classList.remove('on');document.body.style.overflow='';
+  if(typeof coachSync==='function') coachSync();};
 $$('[data-close]').forEach(b=>b.onclick=()=>hide('#'+b.closest('.veil').id));
 $$('.veil').forEach(v=>v.onclick=e=>{if(e.target===v)hide('#'+v.id);});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')$$('.veil.on').forEach(v=>hide('#'+v.id));});
 
-$('#meBtn').onclick=()=>{$('#nameIn').value=S.me;$('#nameNote').textContent='';show('#vName');};
+/* ============================================================
+   الإرشاد اللحظي — خطوة واحدة في وقتها، لا تُغلق إلا بتنفيذ الفعل
+   ============================================================ */
+const COACH=[
+  {k:'name',  sel:'#meBtn',
+   t:'ابدأ من هنا', s:'اكتب اسمك ليُسجَّل توقعك ويظهر ترتيبك بين المتسابقين.',
+   done:()=>!!S.me},
+  {k:'pick',  sel:'#bulkBtn',
+   t:'توقّع مباريات الجولة', s:'اختر الفائز أو التعادل لكل مباراة في شاشة واحدة.',
+   done:()=>S.preds.some(p=>p.user_name===S.me)},
+  {k:'board', sel:'.tabs .tab[data-p="board"]',
+   t:'تابع ترتيبك', s:'كل توقع صحيح = نقطة واحدة. هنا ترى موقعك بين الجميع.',
+   done:()=>localStorage.getItem('splCoach_board')==='1'},
+  {k:'prev',  sel:'.tabs .tab[data-p="prev"]',
+   t:'من أصاب ومن أخطأ؟', s:'بعد انتهاء المباراة تُكشف توقعات الجميع — الصحيح بالأخضر والخاطئ بالأحمر.',
+   done:()=>localStorage.getItem('splCoach_prev')==='1',
+   when:()=>S.fixtures.some(f=>outcome(f))}
+];
+let coachIdx=-1, coachEl=null;
+
+function coachOff(){
+  ['#coachRing','#coachArrow','#coachTip'].forEach(s=>{const e=$(s); if(e) e.style.display='none';});
+  coachEl=null; coachIdx=-1;
+}
+/* «تخطّي» يصرف الخطوة الحالية فقط — بقية الخطوات تظهر في وقتها */
+function coachSkip(){
+  const step=COACH[coachIdx];
+  if(step) localStorage.setItem('splCoachSkip_'+step.k,'1');
+  coachOff();
+  setTimeout(coachNext,400);
+}
+/* إخفاء الإرشاد كله (ضغطة مطوّلة على «تخطّي») */
+function coachSkipAll(){ localStorage.setItem('splCoachDone','1'); coachOff(); toast('أُوقف الإرشاد'); }
+
+/* الإرشاد يختفي ما دامت نافذة منبثقة مفتوحة، ويعود بعد إغلاقها */
+function coachSync(){
+  if(document.querySelector('.veil.on')){
+    ['#coachRing','#coachArrow','#coachTip'].forEach(s=>{const e=$(s); if(e) e.style.display='none';});
+  } else setTimeout(coachNext,250);
+}
+
+function coachNext(){
+  if(localStorage.getItem('splCoachDone')==='1') return coachOff();
+  if(document.querySelector('.veil.on')) return;      // لا نرسم فوق نافذة مفتوحة
+  const step=COACH.find(c=>!c.done() && (!c.when || c.when())
+    && localStorage.getItem('splCoachSkip_'+c.k)!=='1');
+  if(!step){                                     // لا خطوة متاحة الآن
+    if(COACH.every(c=>c.done())) localStorage.setItem('splCoachDone','1');
+    return coachOff();
+  }
+  coachIdx=COACH.indexOf(step);
+  coachEl=document.querySelector(step.sel);
+  if(!coachEl || coachEl.offsetParent===null){ coachOff(); return; }
+  coachDraw(step);
+}
+function coachDraw(step){
+  const r=coachEl.getBoundingClientRect();
+  const ring=$('#coachRing'), tip=$('#coachTip'), arw=$('#coachArrow');
+  const pad=6;
+  ring.style.display='block';
+  ring.style.top=(r.top-pad)+'px'; ring.style.left=(r.left-pad)+'px';
+  ring.style.width=(r.width+pad*2)+'px'; ring.style.height=(r.height+pad*2)+'px';
+
+  tip.style.display='block';
+  tip.innerHTML=`<div class="ct">${step.t}</div><div class="cs">${step.s}</div>
+    <div class="cf"><span class="dots">${COACH.map((c,i)=>
+      `<i class="${i===coachIdx?'on':''}"></i>`).join('')}</span>
+      <button class="skip" onclick="coachSkip()"
+        oncontextmenu="event.preventDefault();coachSkipAll();"
+        title="ضغطة: تخطّي هذه الخطوة · ضغطة مطوّلة: إيقاف الإرشاد">تخطّي هذه الخطوة</button></div>`;
+
+  const tw=tip.offsetWidth, th=tip.offsetHeight;
+  let left=Math.min(Math.max(8, r.left+r.width/2-tw/2), innerWidth-tw-8);
+  let top=r.bottom+14, below=true;
+  if(top+th>innerHeight-8){ top=r.top-th-14; below=false; }
+  tip.style.left=left+'px'; tip.style.top=Math.max(8,top)+'px';
+
+  arw.style.display='block';
+  arw.style.left=(Math.min(Math.max(r.left+r.width/2-9, left+12), left+tw-30))+'px';
+  if(below){ arw.style.top=(r.bottom+5)+'px'; arw.style.transform='none'; }
+  else { arw.style.top=(r.top-14)+'px'; arw.style.transform='rotate(180deg)'; }
+}
+function coachRefresh(){
+  if(document.querySelector('.veil.on')) return;
+  if(coachIdx<0||!coachEl) return;
+  if(coachEl.offsetParent===null){ coachOff(); return; }   // اختفى الزر: نخفي التلميح
+  coachDraw(COACH[coachIdx]);
+}
+addEventListener('resize', coachRefresh);
+addEventListener('scroll', coachRefresh, {passive:true});
+
+/* تطبيع الاسم: الهمزات · التاء المربوطة · الألف المقصورة · المسافات */
+function normName(s){
+  return String(s||'').trim().replace(/\s+/g,' ')
+    .replace(/[أإآٱ]/g,'ا').replace(/ة/g,'ه').replace(/[ىي]/g,'ي')
+    .replace(/[ؤئ]/g,'ء').replace(/[\u064B-\u0652]/g,'').toLowerCase();
+}
+function allNames(){ return [...new Set(S.preds.map(p=>p.user_name))].sort(); }
+function findTwin(v){
+  const n=normName(v); if(!n) return null;
+  return allNames().find(x=>normName(x)===n)||null;
+}
+function nameInfo(name){
+  const rows=latest(S.preds.filter(p=>p.user_name===name));
+  const last=S.preds.filter(p=>p.user_name===name)
+    .map(p=>new Date(p.created_at||0).getTime()).sort((a,b)=>b-a)[0];
+  return {n:rows.length, last:last?new Date(last):null};
+}
+function whenTxt(d){
+  if(!d) return '';
+  const diff=Date.now()-d.getTime();
+  if(diff<36e5) return 'قبل قليل';
+  if(diff<864e5) return 'اليوم';
+  if(diff<1728e5) return 'أمس';
+  return 'قبل '+Math.floor(diff/864e5)+' أيام';
+}
+/* تحذير فوري أثناء الكتابة */
+function checkName(){
+  const v=$('#nameIn').value, w=$('#nameWarn'), go=$('#nameGo');
+  $('#nameNote').textContent='';
+  const twin=findTwin(v);
+  if(!twin || twin===S.me){ w.className='namewarn'; w.innerHTML=''; go.textContent='متابعة'; return; }
+  const i=nameInfo(twin);
+  w.className='namewarn on';
+  w.innerHTML=`⚠️ الاسم <b>«${twin}»</b> مسجّل مسبقاً${i.n?` وله <b>${i.n}</b> ${i.n===1?'توقع':'توقعات'}`:''}${i.last?` · آخر نشاط ${whenTxt(i.last)}`:''}.
+    <div style="color:var(--ink-2);font-size:.63rem;margin-top:4px">
+      إن كان حسابك فتابع، وإن لم يكن فأضف اسم عائلتك أو حرفها ليتميّز.</div>
+    <div class="two">
+      <button class="btn solid" onclick="useName('${esc(twin)}')">نعم، هذا حسابي</button>
+      <button class="btn" onclick="document.getElementById('nameIn').focus()">سأختار اسماً آخر</button>
+    </div>`;
+  go.textContent='متابعة على أي حال';
+}
+function useName(n){ $('#nameIn').value=n; checkName(); $('#nameGo').click(); }
+function fillWhoIsIn(){
+  const names=allNames(), box=$('#whoIsIn');
+  if(!names.length){ box.innerHTML=''; return; }
+  box.innerHTML=`<div class="t">المسجّلون حالياً (${names.length}) — اضغط اسمك إن كنت منهم</div>
+    <div class="chips">${names.map(n=>`<span onclick="useName('${esc(n)}')">${n}</span>`).join('')}</div>`;
+}
+$('#meBtn').onclick=()=>{
+  $('#nameIn').value=S.me; $('#nameNote').textContent='';
+  $('#nameWarn').className='namewarn'; $('#nameWarn').innerHTML='';
+  fillWhoIsIn(); show('#vName');
+};
 $('#nameGo').onclick=()=>{const v=$('#nameIn').value.trim();
   if(!v){$('#nameNote').className='note err';$('#nameNote').textContent='اكتب اسمك أولاً';return;}
+  if(v.replace(/\s/g,'').length<2){
+    $('#nameNote').className='note err';
+    $('#nameNote').textContent='الاسم قصير جداً — اكتب حرفين على الأقل'; return;}
   S.me=v; localStorage.setItem('splName',v);
   $('#meBtn').querySelector('span').textContent=v;
-  hide('#vName');renderMatches();renderRemind();renderMe();renderBoard();toast('أهلاً '+v);};
+  hide('#vName');renderMatches();renderRemind();renderMe();renderBoard();toast('أهلاً '+v);
+  setTimeout(coachNext,500);};
 $('#nameIn').addEventListener('keydown',e=>{if(e.key==='Enter')$('#nameGo').click();});
 
 let pickFid=null;
@@ -1975,7 +2198,7 @@ $('#pickSave').onclick=async function(){
     await upsertPred(mine, {user_name:S.me, match_id:mid, prediction:value});
     await fetchPreds();applyManual();renderMatches();renderRemind();renderMe();renderPrev();renderTable();renderBoard(); if(S.admin)refreshAdmin();
     note.className='note ok';note.textContent='تم الحفظ';
-    setTimeout(()=>hide('#vPick'),800);
+    setTimeout(()=>{hide('#vPick'); coachNext();},800);
   }catch(e){note.className='note err';note.textContent='لم يُحفظ: '+(e.message||'خطأ');}
   finally{this.disabled=false;}
 };
@@ -2122,6 +2345,15 @@ function refreshAdmin(){
       <span class="tag no">مستبدَل</span></div>`;}).join('')
     :`<div class="empty" style="padding:18px"><span>✨</span> لا توجد توقعات مستبدَلة</div>`;
 
+  const iss=nameIssues();
+  $('#namesCnt').textContent=iss.length;
+  $('#namesList').innerHTML=iss.length?iss.map(x=>`<div class="pitem ${x.type==='twin'?'wrong':''}">
+      <span class="who">${x.names.join('  ↔  ')}</span>
+      <span style="flex:2;min-width:150px;font-size:.62rem;color:var(--ink-2)">${x.msg}</span>
+      <span class="tag ${x.type==='twin'?'no':'wait'}">${x.type==='twin'?'تطابق':'اشتباه'}</span></div>`).join('')
+    :`<div class="empty" style="padding:20px"><span>✅</span> لا تداخل في الأسماء</div>`;
+  fillMerge();
+
   fillPlayers(); fillMatches(); fillResMatches();
 }
 function fillPlayers(){
@@ -2169,6 +2401,51 @@ async function adminDelete(){
     await fetchPreds();applyManual();renderMatches();renderRemind();renderMe();renderPrev();renderTable();renderBoard();refreshAdmin();
     n.className='note ok';n.textContent='تم الحذف';
   }catch(e){n.className='note err';n.textContent='فشل الحذف: '+(e.message||'خطأ');}
+}
+
+/* رصد الأسماء المشبوهة */
+function nameIssues(){
+  const out=[];
+  const groups={};
+  allNames().forEach(n=>{ (groups[normName(n)] ||= []).push(n); });
+  Object.values(groups).forEach(g=>{
+    if(g.length>1) out.push({type:'twin', names:g,
+      msg:'أسماء متطابقة بعد التطبيع — الأرجح أنها لشخص واحد'});
+  });
+  // اسم عُدّل توقعه أكثر من مرة على المباراة نفسها
+  const cnt={};
+  S.preds.forEach(p=>{ const k=p.user_name+'|'+fidOf(p.match_id); cnt[k]=(cnt[k]||0)+1; });
+  const heavy={};
+  Object.entries(cnt).forEach(([k,v])=>{ if(v>=3){ const n=k.split('|')[0]; heavy[n]=(heavy[n]||0)+1; } });
+  Object.entries(heavy).forEach(([n,v])=>out.push({type:'multi', names:[n],
+    msg:`عُدِّل توقعه ٣ مرات فأكثر على ${v} ${v===1?'مباراة':'مباريات'} — قد يستخدمه أكثر من شخص`}));
+  return out;
+}
+function fillMerge(){
+  const names=allNames();
+  ['#mgFrom','#mgTo'].forEach(s=>{
+    const el=$(s); if(!el) return; const cur=el.value;
+    el.innerHTML='<option value="">— اختر —</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+    if(cur&&names.includes(cur)) el.value=cur;
+  });
+}
+async function mergeNames(){
+  const from=$('#mgFrom').value, to=$('#mgTo').value, n=$('#mgNote');
+  if(!from||!to){ n.className='note err'; n.textContent='اختر الاسمين'; return; }
+  if(from===to){ n.className='note err'; n.textContent='الاسمان متطابقان'; return; }
+  const rows=S.preds.filter(p=>p.user_name===from);
+  if(!rows.length){ n.className='note err'; n.textContent='لا توقعات لهذا الاسم'; return; }
+  if(!confirm(`نقل ${rows.length} توقعاً من «${from}» إلى «${to}»؟\nإن تكرّرت مباراة سيُعتمد الأحدث.`)) return;
+  n.className='note info'; n.textContent='جارٍ الدمج…';
+  let ok=0, fail=0;
+  for(const r of rows){
+    const {error}=await sb.from('predictions').update({user_name:to}).eq('id',r.id);
+    if(error) fail++; else ok++;
+  }
+  await fetchPreds(); applyManual(); paint(); refreshAdmin();
+  n.className=fail?'note err':'note ok';
+  n.textContent=fail?`نُقل ${ok} وتعذّر ${fail} — تحقق من سياسة التعديل`
+    :`تم دمج «${from}» في «${to}» (${ok} توقعاً)`;
 }
 
 async function staleDeleteAll(){
@@ -2300,6 +2577,9 @@ async function resDelete(){
 
 /* التبويبات والتشغيل */
 $$('.tabs .tab[data-p]').forEach(t=>t.onclick=()=>{
+  if(t.dataset.p==='board') localStorage.setItem('splCoach_board','1');
+  if(t.dataset.p==='prev')  localStorage.setItem('splCoach_prev','1');
+  setTimeout(coachNext,350);
   $$('.tabs .tab[data-p]').forEach(x=>x.classList.remove('on'));t.classList.add('on');
   $$('.panel').forEach(p=>p.classList.remove('on'));
   $('#p-'+t.dataset.p).classList.add('on');
@@ -2307,6 +2587,9 @@ $$('.tabs .tab[data-p]').forEach(t=>t.onclick=()=>{
 
 applyTheme(localStorage.getItem('splTheme')||'dark');
 paintFromCache();
+
+/* الإرشاد اللحظي يبدأ بعد تحميل الواجهة */
+setTimeout(coachNext, 900);
 
 /* رابط مباشر: ?m=رقم المباراة  أو  ?r=رقم الجولة */
 function openFromUrl(){
@@ -2326,7 +2609,8 @@ setInterval(()=>{if(S.ready)loadAll();},300000);
 Object.assign(window,{openPick,openMatch,openPlayer,loadAll,hide,starsMode,boardTab,
   renderCompare,adminTab,adminSave,adminDelete,adminLoadPred,fillPlayers,lockAdmin,toggleTheme,
   resLoad,resSave,resDelete,staleDeleteAll,staleCopy,goPick,shareCard,exportCSV,renderMe,paint,toggleOld,
-  renderNews,renderSearch,renderCards,openClubCards,openBulk,setBulk,shareLink,syncLive,fetchLive,mpTab});
+  renderNews,renderSearch,renderCards,openClubCards,openBulk,setBulk,shareLink,syncLive,fetchLive,mpTab,
+  checkName,useName,normName,mergeNames,fillMerge,coachNext,coachSkip,coachSkipAll,coachSync});
 </script>
 </body>
 </html>
