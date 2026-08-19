@@ -891,10 +891,14 @@ function grab(i,url,ms){
     .finally(()=>clearTimeout(t));
 }
 /* المسار المحفوظ أولاً بمهلة قصيرة، فإن تعثّر تُجرَّب كل المسارات معاً ويفوز الأسرع */
-async function getJSON(url){
-  try{ return await grab(route,url,5000); }catch(e){}
-  try{ return await Promise.any(ROUTES.map((_,i)=>grab(i,url,12000))); }
-  catch(e){ throw new Error('تعذّر الوصول إلى بيانات الدوري (اتصال محجوب أو بطيء)'); }
+async function getJSON(url, opt){
+  const o=opt||{};
+  const t1=o.fast??6000, t2=o.slow??20000, t3=o.last??45000;
+  try{ return await grab(route,url,t1); }catch(e){}
+  try{ return await Promise.any(ROUTES.map((_,i)=>grab(i,url,t2))); }catch(e){}
+  // محاولة أخيرة مطوّلة للملفات الضخمة قبل الاستسلام
+  try{ return await Promise.any(ROUTES.map((_,i)=>grab(i,url,t3))); }
+  catch(e){ throw new Error('تعذّر الوصول إلى بيانات الدوري (اتصال بطيء أو محجوب)'); }
 }
 
 /* ذاكرة محلية: تعرض البيانات فوراً ثم تُحدَّث في الخلفية */
@@ -964,8 +968,11 @@ function mapBootstrap(b){
 }
 /* ملف اللاعبين ضخم — يُجلب في الخلفية ولا يؤخّر ظهور المباريات */
 async function fetchBootstrap(){
+  if(S.bsLoading) return S.bsLoading;             // لا نكرر الطلب الضخم
+  S.bsLoading=(async()=>{
   try{
-    const b=await getJSON(`${CFG.API}/bootstrap-static/`);
+    // هذا أضخم ملف في الواجهة، فنمنحه مهلة سخية
+    const b=await getJSON(`${CFG.API}/bootstrap-static/`,{fast:12000,slow:30000,last:60000});
     cacheSet('bs',{teams:b.teams,events:b.events,elements:(b.elements||[]).map(e=>({id:e.id,
       web_name:e.web_name,second_name:e.second_name,team:e.team,element_type:e.element_type,
       goals_scored:e.goals_scored,assists:e.assists,minutes:e.minutes,total_points:e.total_points,
@@ -974,8 +981,23 @@ async function fetchBootstrap(){
       chance_of_playing_next_round:e.chance_of_playing_next_round,
       selected_by_percent:e.selected_by_percent,now_cost:e.now_cost,
       cost_change_event:e.cost_change_event,ep_next:e.ep_next}))});
+    S.bsFailed=false;
     mapBootstrap(b); renderStars(); renderNews(); renderCards(); renderTeams(); renderMatches(); renderRemind();
-  }catch(e){ console.warn('تعذّر جلب بيانات اللاعبين',e); }
+  }catch(e){
+    console.warn('تعذّر جلب بيانات اللاعبين',e);
+    const old=cacheGet('bs', 7*24*36e5);          // نقبل نسخة قديمة بدل لا شيء
+    if(old){ S.bsFailed=false; mapBootstrap(old); }
+    else S.bsFailed=true;
+    renderStars(); renderNews(); renderCards(); renderTeams();
+  }finally{ S.bsLoading=null; }
+  })();
+  return S.bsLoading;
+}
+/* إعادة محاولة يدوية من الأقسام التي تعتمد على اللاعبين */
+async function retryBootstrap(){
+  S.bsFailed=false; S.players=[];
+  renderStars(); renderNews(); renderCards();
+  await fetchBootstrap();
 }
 /* تُسحب الجولات المنتهية مرة واحدة، والجارية في كل تحديث */
 async function syncLive(){
@@ -1382,8 +1404,15 @@ function renderStars(){
     </td></tr></tbody>`;
     return;
   }
-  if(!S.players.length){$('#starsNote').textContent='غير متاح';
-    $('#starsTbl').innerHTML=`<tbody><tr><td style="padding:26px">تعذّر جلب بيانات اللاعبين</td></tr></tbody>`;return;}
+  if(!S.players.length){
+    $('#starsNote').textContent = S.bsFailed?'تعذّر التحميل':'جارٍ التحميل';
+    $('#starsTbl').innerHTML=`<tbody><tr><td style="padding:26px">`+
+      (S.bsFailed
+        ? `تعذّر جلب بيانات اللاعبين — الملف كبير والاتصال بطيء
+           <br><button class="btn solid" style="margin-top:12px" onclick="retryBootstrap()">🔄 إعادة المحاولة</button>`
+        : `⏳ جارٍ تحميل بيانات اللاعبين… الملف كبير وقد يستغرق نصف دقيقة`)+
+      `</td></tr></tbody>`;
+    return;}
   const M=STAR_MODES[S.starsMode]||STAR_MODES.g;
 
   if(S.starsMode==='n'){                       // بطاقات الأندية
@@ -1659,7 +1688,14 @@ function goPick(fid){
 
 function renderCards(){
   const w=$('#cardsWrap'); if(!w) return;
-  if(!S.players.length){ w.innerHTML=`<div class="empty"><span>⏳</span> جارٍ التحميل…</div>`; return; }
+  if(!S.players.length){
+    w.innerHTML = S.bsFailed ? `<div class="empty"><span>⚠️</span> تعذّر جلب بيانات اللاعبين
+      <br><small style="display:block;margin-top:6px;line-height:1.9">الملف كبير والاتصال بطيء.
+      اضغط لإعادة المحاولة.</small>
+      <button class="btn solid" style="margin-top:12px" onclick="retryBootstrap()">🔄 إعادة المحاولة</button></div>`
+      : `<div class="empty"><span>⏳</span> جارٍ تحميل بيانات اللاعبين…
+         <br><small>الملف كبير وقد يستغرق نصف دقيقة</small></div>`;
+    return; }
   const all=S.players.map(p=>({p,c:cardStatus(p)}));
   const susp=all.filter(x=>x.c.suspended);
   const risk=all.filter(x=>x.c.risk&&!x.c.suspended).sort((a,b)=>b.p.selpc-a.p.selpc);
@@ -1893,8 +1929,14 @@ function hardestOf(round){
 function renderNews(){
   const w=$('#newsWrap'); if(!w) return;
   if(!S.players.length){
-    $('#newsNote').textContent='—';
-    w.innerHTML=`<div class="empty"><span>⏳</span> جارٍ تحميل بيانات اللاعبين…</div>`; return; }
+    $('#newsNote').textContent = S.bsFailed?'تعذّر التحميل':'—';
+    w.innerHTML = S.bsFailed ? `<div class="empty"><span>⚠️</span> تعذّر جلب بيانات اللاعبين
+      <br><small style="display:block;margin-top:6px;line-height:1.9">الملف كبير والاتصال بطيء.
+      اضغط لإعادة المحاولة.</small>
+      <button class="btn solid" style="margin-top:12px" onclick="retryBootstrap()">🔄 إعادة المحاولة</button></div>`
+      : `<div class="empty"><span>⏳</span> جارٍ تحميل بيانات اللاعبين…
+         <br><small>الملف كبير وقد يستغرق نصف دقيقة</small></div>`;
+    return; }
 
   // آخر مباراة في الجولة = آخر فرصة للتوقع في تطبيقنا
   const fx=(S.byRound[S.currentRound]||[]).filter(f=>!hasEnded(f));
@@ -2740,7 +2782,7 @@ setInterval(()=>{
   if(soon || Date.now()%3e5<6e4) loadAll();
 },60000);
 
-Object.assign(window,{openPick,openMatch,openPlayer,loadAll,hide,starsMode,boardTab,
+Object.assign(window,{openPick,openMatch,openPlayer,loadAll,retryBootstrap,hide,starsMode,boardTab,
   renderCompare,adminTab,adminSave,adminDelete,adminLoadPred,fillPlayers,lockAdmin,toggleTheme,
   resLoad,resSave,resDelete,staleDeleteAll,staleCopy,goPick,shareCard,exportCSV,renderMe,paint,toggleOld,
   renderNews,renderSearch,renderCards,openClubCards,openBulk,setBulk,shareLink,syncLive,fetchLive,mpTab,
@@ -2748,4 +2790,3 @@ Object.assign(window,{openPick,openMatch,openPlayer,loadAll,hide,starsMode,board
 </script>
 </body>
 </html>
- 
