@@ -882,8 +882,9 @@ function applyTheme(t){document.documentElement.setAttribute('data-theme',t);
 function toggleTheme(){applyTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');}
 
 /* الجلب */
-const ROUTES=[u=>u,u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
-  u=>'https://corsproxy.io/?url='+encodeURIComponent(u)];
+/* اختبار: الاتصال المباشر وحده بلا أي وسيط.
+   إن نجح فهذه أسرع صورة ممكنة — طلب واحد بلا قفزة زائدة. */
+const ROUTES=[u=>u];
 let route=+(localStorage.getItem('splRoute')||0);   // نتذكّر المسار الناجح بين الجلسات
 
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -905,16 +906,13 @@ function race(url,t){
 /* المسار المحفوظ أولاً بمهلة قصيرة، فإن تعثّر تُجرَّب كل المسارات معاً ويفوز الأسرع */
 async function getJSON(url, opt){
   const o=opt||{};
-  const t1=o.fast??6000, t2=o.slow??20000, t3=o.last??45000;
-  // لا مسار محفوظ (أول زيارة) = نطلق كل المسارات معاً ويفوز الأسرع
-  if(localStorage.getItem('splRoute')===null){
-    try{ return await Promise.any(ROUTES.map((_,i)=>grab(i,url,t2))); }catch(e){}
+  const t1=o.fast??8000, t2=o.slow??25000;
+  try{ return await grab(0,url,t1); }catch(e){ window.__lastNetErr=e&&e.message; }
+  try{ return await grab(0,url,t2); }            // محاولة ثانية للملفات الضخمة
+  catch(e){
+    window.__lastNetErr=e&&e.message;
+    throw new Error('تعذّر الاتصال المباشر بخادم الرابطة — '+(e&&e.message||'سبب غير معروف'));
   }
-  try{ return await race(url,t1); }catch(e){}
-  try{ return await Promise.any(ROUTES.map((_,i)=>grab(i,url,t2))); }catch(e){}
-  // محاولة أخيرة مطوّلة للملفات الضخمة قبل الاستسلام
-  try{ return await Promise.any(ROUTES.map((_,i)=>grab(i,url,t3))); }
-  catch(e){ throw new Error('تعذّر الوصول إلى بيانات الدوري (اتصال بطيء أو محجوب)'); }
 }
 
 /* ذاكرة محلية: تعرض البيانات فوراً ثم تُحدَّث في الخلفية */
@@ -1158,6 +1156,7 @@ function paintFromCache(){
   return true;
 }
 async function loadAll(manual){
+  const __t0=performance.now();
   try{
     const [fxRes] = await Promise.allSettled([fetchFixtures(), fetchPreds()]);
     if(fxRes.status==='rejected') throw fxRes.reason;
@@ -1167,14 +1166,19 @@ async function loadAll(manual){
     S.ready=true; if(!manual) S.viewRound=S.currentRound;
     paint();
     if(S.admin) refreshAdmin();
-    if(manual) toast('تم التحديث');
+    const ms=Math.round(performance.now()-__t0);
+    window.__loadMs=ms;
+    console.log('%c⏱ زمن جلب البيانات: '+ms+' مللي ثانية (اتصال مباشر بلا وسيط)',
+      'color:#00b492;font-weight:bold');
+    if(manual) toast(`تم التحديث · ${(ms/1000).toFixed(1)} ثانية`);
     if(!S._urlDone){ S._urlDone=true; openFromUrl(); }
   }catch(e){
     console.error(e);
     const m=`<div class="empty"><span>⚠️</span> ${e.message}
       <br><small style="display:block;margin-top:8px;line-height:1.9">
-      إن كنت تفتح الملف من جهازك مباشرة فالمتصفح يمنع الاتصال بخادم الرابطة.<br>
-      ارفع الملف على استضافة (Netlify أو GitHub Pages) وافتحه عبر رابط https.</small></div>`;
+      <b>نسخة اختبارية بلا وسطاء.</b> إن ظهرت هذه الرسالة فمعناها أن خادم الرابطة
+      يرفض الاتصال المباشر من المتصفح (منع CORS)، وسنحتاج وسيطاً خاصاً بنا.<br>
+      افتح Console وأرسل لي نص الخطأ.</small></div>`;
     $('#matches').innerHTML=m; $('#rankWrap').innerHTML=m;
     $('#roundBadge').textContent='تعذّر التحميل'; $('#liveStat').textContent='⚠️ لا اتصال';
   }
@@ -2794,7 +2798,7 @@ function openFromUrl(){
     s+=1;
     if(s<4) return;
     box.innerHTML = s<12
-      ? `جارٍ جلب جدول الموسم… <b>${s}</b> ثانية<br>أول فتح فقط، والمرات القادمة فورية.`
+      ? `جارٍ جلب جدول الموسم… <b>${s}</b> ثانية<br>اتصال مباشر بلا وسيط (نسخة اختبارية).`
       : `الاتصال أبطأ من المعتاد… <b>${s}</b> ثانية<br>ما زلنا نحاول عبر مسار بديل، لا تغلق الصفحة.`;
   },1000);
 })();
